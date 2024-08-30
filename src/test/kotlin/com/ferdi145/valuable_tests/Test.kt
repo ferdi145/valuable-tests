@@ -150,7 +150,7 @@ class Test {
     refactoring: change file location in repo
      */
     @Test
-    fun `sum is in file by repository (test with real FileSumRepository)`(@TempDir tempDir: Path) {
+    fun `sum is persisted to file (test with real FileSumRepository)`(@TempDir tempDir: Path) {
         val adder = Adder()
         val repository = FileSumRepository(tempDir)
         val sut = CalculatorWithPersistantSum(adder, repository)
