@@ -1,15 +1,20 @@
 package com.ferdi145.valuable_tests
 
+import io.mockk.Runs
 import io.mockk.every
+import io.mockk.just
 import io.mockk.mockk
 import io.mockk.verify
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.io.TempDir
+import java.io.File
+import java.nio.file.Path
 
 class Test {
 
     /*
-    change calculator.add to -> this.sum = newSum + 2
+    change last line of add() in Calculator to -> this.sum = newSum + 2
      */
     @Test
     fun `adding 1 and 2 equals 3`() {
@@ -19,7 +24,7 @@ class Test {
     }
 
     /*
-    refactoring: inline adder.add
+    refactoring: inline adder.add() in Calculator
      */
     @Test
     fun `adding 1 and 2 equals 3 (sociable test)`() {
@@ -33,7 +38,7 @@ class Test {
     }
 
     /*
-    refactoring: inline adder.add
+    refactoring: inline adder.add() in Calculator
      */
     @Test
     fun `adding 1 and 2 equals 3 (isolated test with stub)`() {
@@ -64,7 +69,7 @@ class Test {
         verify(exactly = 1) { adder.add(0, 1) }
         verify(exactly = 1) { adder.add(1, 2) }
     }
-    
+
     /*
     refactoring: inline adder.add
      */
@@ -83,63 +88,96 @@ class Test {
     }
 
     /*
-    change adder.add to -> return 0 + number2
+    change adder.add to -> return 0 + number2 -> still green
      */
     @Test
-    fun `adding 1 and 2 equals 3 result of adder`() {
+    fun `adding 1 and 2 equals result of adder`() {
         val adder = Adder()
         val sut = Calculator(adder)
 
         sut.add(1)
         sut.add(2)
 
-        assertThat(sut.result()).isEqualTo(adder.add(1, 2))
+        val result = adder.add(1, 2)
+        assertThat(sut.result()).isEqualTo(result)
     }
 
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    // new implementation: Calculator now prints result directly, has 'printer' collaborator for this
-//    @Test
-//    fun `adding 1 and 2 equals prints 3 (sociable test with self written test double)`() {
-//        val adder = Adder()
-//        val printer = FakePrinter()
-//        val sut = CalculatorWithPrinter(adder, printer)
-//        sut.add(1)
-//        sut.add(2)
-//        
-//        sut.printResult()
-//
-//        assertThat(printer.receivedPrintJobs()).isEqualTo(listOf("Result: 3"))
-//    }
-//
-//    @Test
-//    fun `adding 1 and 2 equals prints 3 (sociable test with mockk mock)`() {
-//        val adder = Adder()
-//        val printer: Printer = mockk(relaxed = true)
-//        val sut = CalculatorWithPrinter(adder, printer)
-//        sut.add(1)
-//        sut.add(2)
-//
-//        sut.printResult()
-//
-//        verify(exactly = 1) { printer.print("Result: 3") }
-//    }
+
+    @Test
+    fun `sum is persisted by repository (test with self written test double)`() {
+        val adder = Adder()
+        val repository = FakeSumRepository()
+        val sut = CalculatorWithPersistantSum(adder, repository)
+
+        sut.add(1)
+        sut.add(2)
+
+        val sum: Int = repository.fetchSum()
+        assertThat(sum).isEqualTo(3)
+    }
+
+    @Test
+    fun `sum is persisted by repository (test with mockk stub 1)`() {
+        val adder = Adder()
+        val sumRepository = mockk<SumRepository>()
+        every { sumRepository.saveSum(any()) } just Runs
+        every { sumRepository.fetchSum() } returns 0 andThen 1 andThen 3
+        val sut = CalculatorWithPersistantSum(adder, sumRepository)
+
+        sut.add(1)
+        sut.add(2)
+
+        val sum: Int = sumRepository.fetchSum()
+        assertThat(sum).isEqualTo(3)
+    }
+
+    @Test
+    fun `sum is persisted by repository (test with mockk mock)`() {
+        val adder = Adder()
+        val sumRepository = mockk<SumRepository>()
+        every { sumRepository.saveSum(any()) } just Runs
+        every { sumRepository.fetchSum() } returns 0 andThen 1
+        val sut = CalculatorWithPersistantSum(adder, sumRepository)
+
+        sut.add(1)
+        sut.add(2)
+
+        verify(exactly = 1) { sumRepository.saveSum(1) }
+        verify(exactly = 1) { sumRepository.saveSum(3) }
+    }
+
+    /*
+    refactoring: change file location in repo
+     */
+    @Test
+    fun `sum is in file by repository (test with real FileSumRepository)`(@TempDir tempDir: Path) {
+        val adder = Adder()
+        val repository = FileSumRepository(tempDir)
+        val sut = CalculatorWithPersistantSum(adder, repository)
+
+        sut.add(1)
+        sut.add(2)
+
+
+        val result = File("${tempDir}/sum-persistance.txt").let { file ->
+            file
+                .readText()
+                .trim()
+                .toInt()
+        }
+        assertThat(result).isEqualTo(3)
+    }
+
+    @Test
+    fun `sum is persisted by repository (test with real FileSumRepository)`(@TempDir tempDir: Path) {
+        val adder = Adder()
+        val repository = FileSumRepository(tempDir)
+        val sut = CalculatorWithPersistantSum(adder, repository)
+
+        sut.add(1)
+        sut.add(2)
+
+        val sum: Int = repository.fetchSum()
+        assertThat(sum).isEqualTo(3)
+    }
 }
